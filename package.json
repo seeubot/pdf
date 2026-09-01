@@ -1,0 +1,16 @@
+{
+  "name": "pdf-tools-website",
+  "version": "1.0.0",
+  "description": "Free online PDF tools - Merge, Split, Compress, and more",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel deploy --prod"
+  },
+  "dependencies": {
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^3.11.174"
+  },
+  "devDependencies": {
+    "vercel": "^32.0.0"
+  }
+}

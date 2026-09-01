@@ -71,57 +71,42 @@ export default function ProtectPDF() {
     setIsProcessing(true)
     setError(null)
     setProtectedUrl(null)
-    setDebugInfo('Adding password protection...')
+    setDebugInfo('Protecting PDF...')
 
     try {
+      // Read the original PDF
       const fileBuffer = await file.file.arrayBuffer()
       const pdf = await PDFDocument.load(fileBuffer)
 
-      setDebugInfo('Creating protected version...')
+      setDebugInfo('Adding watermark...')
 
-      // Create a new PDF with protection page
-      const protectedPdf = await PDFDocument.create()
-      
-      // Copy all pages from original
-      const pages = await protectedPdf.copyPages(pdf, pdf.getPageIndices())
-      pages.forEach(page => protectedPdf.addPage(page))
+      // Add watermark to all pages
+      const helveticaFont = await pdf.embedFont(StandardFonts.HelveticaBold)
+      const totalPages = pdf.getPageCount()
 
-      // Add a password notice page at the beginning
-      const helveticaFont = await protectedPdf.embedFont(StandardFonts.HelveticaBold)
-      const noticePage = protectedPdf.insertPage(0, [600, 400])
-      
-      noticePage.drawText('PDF Protected', {
-        x: 200,
-        y: 250,
-        size: 30,
-        font: helveticaFont,
-        color: rgb(1, 0, 0)
-      })
+      for (let i = 0; i < totalPages; i++) {
+        const page = pdf.getPage(i)
+        const { width, height } = page.getSize()
+        
+        page.drawText('PROTECTED', {
+          x: width / 2 - 60,
+          y: height / 2,
+          size: 30,
+          font: helveticaFont,
+          color: rgb(0.9, 0.9, 0.9),
+          rotate: Math.PI / 6
+        })
+      }
 
-      noticePage.drawText('This PDF is protected with a password.', {
-        x: 130,
-        y: 200,
-        size: 16,
-        font: helveticaFont,
-        color: rgb(0, 0, 0)
-      })
+      setDebugInfo('Saving protected PDF...')
 
-      noticePage.drawText(`Password hint: Use "${password}" to open this file.`, {
-        x: 120,
-        y: 160,
-        size: 12,
-        font: helveticaFont,
-        color: rgb(0.5, 0.5, 0.5)
-      })
+      const protectedPdfBytes = await pdf.save()
 
-      setDebugInfo('Saving PDF...')
-
-      const protectedPdfBytes = await protectedPdf.save()
-
+      // Create the protected file
       const blob = new Blob([protectedPdfBytes as BlobPart], { type: 'application/pdf' })
       const url = URL.createObjectURL(blob)
       setProtectedUrl(url)
-      setDebugInfo('PDF protected successfully!')
+      setDebugInfo('PDF protected with watermark!')
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to protect PDF'
       setError(message)
@@ -156,10 +141,10 @@ export default function ProtectPDF() {
       <div style={{ maxWidth: '800px', margin: '0 auto' }}>
         <div style={{ textAlign: 'center', marginBottom: '40px' }}>
           <h1 style={{ fontSize: '36px', fontWeight: 'bold', color: '#111827', marginBottom: '12px' }}>
-            Protect PDF
+            Protect PDF with Watermark
           </h1>
           <p style={{ fontSize: '18px', color: '#6b7280' }}>
-            Add a protection page and watermark to your PDF
+            Add a watermark to protect your PDF document
           </p>
         </div>
 
@@ -235,34 +220,16 @@ export default function ProtectPDF() {
               </button>
             </div>
 
-            {/* Password Input */}
+            {/* Watermark Text Input */}
             <div style={{ marginTop: '20px' }}>
               <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#374151' }}>
-                Protection Key
+                Watermark Text
               </label>
               <input
-                type="password"
+                type="text"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter a protection key"
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '8px',
-                  fontSize: '16px',
-                  marginBottom: '16px'
-                }}
-              />
-
-              <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#374151' }}>
-                Confirm Key
-              </label>
-              <input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Re-enter protection key"
+                placeholder="Enter watermark text"
                 style={{
                   width: '100%',
                   padding: '12px',
@@ -290,7 +257,7 @@ export default function ProtectPDF() {
                     opacity: isProcessing ? 0.5 : 1
                   }}
                 >
-                  {isProcessing ? 'Protecting...' : 'Protect PDF'}
+                  {isProcessing ? 'Protecting...' : 'Add Watermark'}
                 </button>
                 <button
                   onClick={clearAll}
@@ -340,7 +307,7 @@ export default function ProtectPDF() {
               PDF Protected Successfully!
             </h2>
             <p style={{ color: '#6b7280', marginBottom: '16px' }}>
-              A protection page has been added to your PDF
+              Watermark has been added to all pages
             </p>
             <button
               onClick={handleDownload}

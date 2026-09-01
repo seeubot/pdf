@@ -54,33 +54,31 @@ export default function ProtectPDF() {
     }
 
     if (!password) {
-      setError('Please enter a password')
+      setError('Please enter a watermark text')
       return
     }
 
-    if (password.length < 4) {
-      setError('Password must be at least 4 characters long')
+    if (password.length < 2) {
+      setError('Watermark text must be at least 2 characters long')
       return
     }
 
     if (password !== confirmPassword) {
-      setError('Passwords do not match')
+      setError('Text fields do not match')
       return
     }
 
     setIsProcessing(true)
     setError(null)
     setProtectedUrl(null)
-    setDebugInfo('Protecting PDF...')
+    setDebugInfo('Adding watermark...')
 
     try {
-      // Read the original PDF
       const fileBuffer = await file.file.arrayBuffer()
       const pdf = await PDFDocument.load(fileBuffer)
 
-      setDebugInfo('Adding watermark...')
+      setDebugInfo('Adding watermark to all pages...')
 
-      // Add watermark to all pages
       const helveticaFont = await pdf.embedFont(StandardFonts.HelveticaBold)
       const totalPages = pdf.getPageCount()
 
@@ -88,13 +86,13 @@ export default function ProtectPDF() {
         const page = pdf.getPage(i)
         const { width, height } = page.getSize()
         
-        page.drawText('PROTECTED', {
+        page.drawText(password, {
           x: width / 2 - 60,
           y: height / 2,
-          size: 30,
+          size: 40,
           font: helveticaFont,
-          color: rgb(0.9, 0.9, 0.9),
-          rotate: Math.PI / 6
+          color: rgb(0.85, 0.85, 0.85),
+          rotate: 45
         })
       }
 
@@ -102,7 +100,6 @@ export default function ProtectPDF() {
 
       const protectedPdfBytes = await pdf.save()
 
-      // Create the protected file
       const blob = new Blob([protectedPdfBytes as BlobPart], { type: 'application/pdf' })
       const url = URL.createObjectURL(blob)
       setProtectedUrl(url)
@@ -230,6 +227,24 @@ export default function ProtectPDF() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter watermark text"
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '8px',
+                  fontSize: '16px',
+                  marginBottom: '16px'
+                }}
+              />
+
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#374151' }}>
+                Confirm Text
+              </label>
+              <input
+                type="text"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Re-enter watermark text"
                 style={{
                   width: '100%',
                   padding: '12px',

@@ -25,7 +25,7 @@ export default function MergePDF() {
 
   const processFiles = (selectedFiles: FileList) => {
     const pdfFiles: FileItem[] = []
-    
+
     for (let i = 0; i < selectedFiles.length; i++) {
       const file = selectedFiles[i]
       if (file.type === 'application/pdf') {
@@ -75,13 +75,13 @@ export default function MergePDF() {
   const moveFile = (index: number, direction: 'up' | 'down') => {
     const newFiles = [...files]
     const newIndex = direction === 'up' ? index - 1 : index + 1
-    
+
     if (newIndex < 0 || newIndex >= newFiles.length) return
-    
+
     const temp = newFiles[index]
     newFiles[index] = newFiles[newIndex]
     newFiles[newIndex] = temp
-    
+
     setFiles(newFiles)
   }
 
@@ -99,6 +99,11 @@ export default function MergePDF() {
       return
     }
 
+    // Release any previous merged blob before creating a new one
+    if (mergedUrl) {
+      URL.revokeObjectURL(mergedUrl)
+    }
+
     setIsMerging(true)
     setError(null)
     setMergedUrl(null)
@@ -109,8 +114,21 @@ export default function MergePDF() {
       for (let i = 0; i < files.length; i++) {
         const fileItem = files[i]
         const fileBuffer = await fileItem.file.arrayBuffer()
-        const pdf = await PDFDocument.load(fileBuffer)
-        const pages = await pdf.copyPages(mergedPdf, pdf.getPageIndices())
+
+        let pdf: PDFDocument
+        try {
+          pdf = await PDFDocument.load(fileBuffer)
+        } catch (loadErr) {
+          const msg = loadErr instanceof Error ? loadErr.message.toLowerCase() : ''
+          if (msg.includes('encrypt')) {
+            throw new Error(
+              `"${fileItem.name}" is password-protected. Please remove the password before merging.`
+            )
+          }
+          throw new Error(`"${fileItem.name}" could not be read. It may be corrupted or not a valid PDF.`)
+        }
+
+        const pages = await mergedPdf.copyPages(pdf, pdf.getPageIndices())
         pages.forEach(page => mergedPdf.addPage(page))
       }
 
@@ -138,6 +156,9 @@ export default function MergePDF() {
   }
 
   const clearAll = () => {
+    if (mergedUrl) {
+      URL.revokeObjectURL(mergedUrl)
+    }
     setFiles([])
     setMergedUrl(null)
     setError(null)
@@ -163,9 +184,9 @@ export default function MergePDF() {
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
           onClick={() => document.getElementById('pdf-upload')?.click()}
-          className={`border-3 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all duration-300 ${
+          className={`border-[3px] border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all duration-300 ${
             isDragging
-              ? 'border-blue-500 bg-blue-50 scale-102'
+              ? 'border-blue-500 bg-blue-50 scale-[1.02]'
               : 'border-gray-300 bg-white hover:border-blue-400 hover:shadow-xl'
           }`}
         >
@@ -200,7 +221,7 @@ export default function MergePDF() {
               </h2>
               <span className="text-sm text-gray-500">Total: {formatSize(files.reduce((acc, f) => acc + f.size, 0))}</span>
             </div>
-            
+
             <div className="space-y-3">
               {files.map((fileItem, index) => (
                 <div

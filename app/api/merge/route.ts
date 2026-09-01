@@ -1,65 +1,259 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { PDFDocument } from 'pdf-lib'
+'use client'
 
-export const runtime = 'nodejs'
-export const dynamic = 'force-dynamic'
+import { useState, useCallback } from 'react'
+import { useDropzone } from 'react-dropzone'
+import { motion } from 'framer-motion'
 
-export async function POST(request: NextRequest) {
-  try {
-    const formData = await request.formData()
-    const files = formData.getAll('files') as File[]
+interface FileItem {
+  id: string
+  file: File
+  name: string
+  size: number
+}
 
-    if (files.length < 2) {
-      return NextResponse.json(
-        { error: 'Please upload at least 2 PDF files' },
-        { status: 400 }
-      )
+export default function MergePDF() {
+  const [files, setFiles] = useState<FileItem[]>([])
+  const [isMerging, setIsMerging] = useState(false)
+  const [mergedUrl, setMergedUrl] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    const pdfFiles = acceptedFiles.filter(file => file.type === 'application/pdf')
+    
+    if (pdfFiles.length === 0) {
+      setError('Please upload PDF files only')
+      return
     }
 
-    console.log(`Merging ${files.length} PDF files`)
+    const newFiles = pdfFiles.map(file => ({
+      id: Math.random().toString(36).substr(2, 9),
+      file,
+      name: file.name,
+      size: file.size
+    }))
 
-    // Create a new PDF document
-    const mergedPdf = await PDFDocument.create()
+    setFiles(prev => [...prev, ...newFiles])
+    setError(null)
+    setMergedUrl(null)
+  }, [])
 
-    // Process each file
-    for (const file of files) {
-      try {
-        console.log(`Processing: ${file.name}, Size: ${file.size}`)
-        
-        const fileBuffer = await file.arrayBuffer()
-        const pdf = await PDFDocument.load(fileBuffer)
-        const pages = await pdf.copyPages(mergedPdf, pdf.getPageIndices())
-        pages.forEach(page => mergedPdf.addPage(page))
-        
-        console.log(`Successfully added ${pages.length} pages from ${file.name}`)
-      } catch (fileError) {
-        console.error(`Error processing ${file.name}:`, fileError)
-        throw new Error(`Failed to process ${file.name}`)
-      }
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: {
+      'application/pdf': ['.pdf']
     }
+  })
 
-    // Save the merged PDF
-    const mergedPdfBytes = await mergedPdf.save()
-    const buffer = Buffer.from(mergedPdfBytes)
-
-    console.log(`Successfully merged ${files.length} files`)
-
-    // Return the merged PDF
-    return new NextResponse(buffer, {
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': 'attachment; filename="merged.pdf"',
-        'Cache-Control': 'no-store'
-      }
-    })
-  } catch (error) {
-    console.error('Merge error:', error)
-    return NextResponse.json(
-      { 
-        error: 'Failed to merge PDFs',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      },
-      { status: 500 }
-    )
+  const removeFile = (id: string) => {
+    setFiles(prev => prev.filter(f => f.id !== id))
+    setMergedUrl(null)
   }
+
+  const moveFile = (index: number, direction: 'up' | 'down') => {
+    const newFiles = [...files]
+    const newIndex = direction === 'up' ? index - 1 : index + 1
+    
+    if (newIndex < 0 || newIndex >= newFiles.length) return
+    
+    const temp = newFiles[index]
+    newFiles[index] = newFiles[newIndex]
+    newFiles[newIndex] = temp
+    
+    setFiles(newFiles)
+  }
+
+  const formatSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes'
+    const k = 1024
+    const sizes = ['Bytes', 'KB', 'MB', 'GB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+  }
+
+  const handleMerge = async () => {
+    if (files.length < 2) {
+      setError('Please upload at least 2 PDF files to merge')
+      return
+    }
+
+    setIsMerging(true)
+    setError(null)
+    setMergedUrl(null)
+
+    try {
+      const formData = new FormData()
+      
+      files.forEach(fileItem => {
+        formData.append('files', fileItem.file, fileItem.name)
+      })
+
+      console.log('Sending files to merge...')
+
+      const response = await fetch('/api/merge', {
+        method: 'POST',
+        body: formData
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.details || 'Failed to merge PDFs')
+      }
+
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      setMergedUrl(url)
+      console.log('Merge successful')
+    } catch (err) {
+      console.error('Merge error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to merge PDFs. Please try again.')
+    } finally {
+      setIsMerging(false)
+    }
+  }
+
+  const handleDownload = () => {
+    if (mergedUrl) {
+      const link = document.createElement('a')
+      link.href = mergedUrl
+      link.download = 'merged.pdf'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    }
+  }
+
+  const clearAll = () => {
+    setFiles([])
+    setMergedUrl(null)
+    setError(null)
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 py-12">
+      <div className="max-w-4xl mx-auto px-4">
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-gray-900 mb-4">Merge PDF Files</h1>
+          <p className="text-xl text-gray-600">Combine multiple PDFs into one single document</p>
+        </div>
+
+        {/* Upload Area */}
+        <div
+          {...getRootProps()}
+          className={`border-4 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-colors ${
+            isDragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-blue-400'
+          }`}
+        >
+          <input {...getInputProps()} />
+          <div className="text-6xl mb-4 font-bold text-gray-400">PDF</div>
+          <p className="text-xl font-semibold text-gray-700 mb-2">
+            {isDragActive ? 'Drop PDF files here' : 'Drag and drop PDF files here'}
+          </p>
+          <p className="text-gray-500">or click to select files</p>
+          <p className="text-sm text-gray-400 mt-2">Maximum file size: 10MB per file</p>
+        </div>
+
+        {/* File List */}
+        {files.length > 0 && (
+          <div className="mt-8 bg-white rounded-xl shadow-lg p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">
+              Selected Files ({files.length})
+            </h2>
+            <div className="space-y-3">
+              {files.map((fileItem, index) => (
+                <div
+                  key={fileItem.id}
+                  className="flex items-center justify-between bg-gray-50 rounded-lg p-3"
+                >
+                  <div className="flex items-center space-x-3 flex-1">
+                    <span className="text-2xl font-bold text-red-500">PDF</span>
+                    <div>
+                      <p className="font-medium text-gray-900">{fileItem.name}</p>
+                      <p className="text-sm text-gray-500">{formatSize(fileItem.size)}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => moveFile(index, 'up')}
+                      disabled={index === 0}
+                      className="p-2 hover:bg-gray-200 rounded disabled:opacity-30"
+                      title="Move up"
+                    >
+                      Up
+                    </button>
+                    <button
+                      onClick={() => moveFile(index, 'down')}
+                      disabled={index === files.length - 1}
+                      className="p-2 hover:bg-gray-200 rounded disabled:opacity-30"
+                      title="Move down"
+                    >
+                      Down
+                    </button>
+                    <button
+                      onClick={() => removeFile(fileItem.id)}
+                      className="p-2 hover:bg-red-100 rounded text-red-600"
+                      title="Remove"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-6 flex flex-col sm:flex-row gap-4">
+              <button
+                onClick={handleMerge}
+                disabled={isMerging || files.length < 2}
+                className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-lg font-semibold hover:shadow-lg transition disabled:opacity-50"
+              >
+                {isMerging ? 'Merging...' : 'Merge PDFs'}
+              </button>
+              <button
+                onClick={clearAll}
+                className="px-6 py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition"
+              >
+                Clear All
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Result */}
+        {mergedUrl && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-8 bg-green-50 border-2 border-green-500 rounded-xl p-6 text-center"
+          >
+            <h2 className="text-2xl font-bold text-green-700 mb-2">PDF Merged Successfully!</h2>
+            <p className="text-gray-600 mb-4">Your files have been combined into one PDF</p>
+            <button
+              onClick={handleDownload}
+              className="bg-green-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-green-700 transition"
+            >
+              Download Merged PDF
+            </button>
+          </motion.div>
+        )}
+
+        {/* Error */}
+        {error && (
+          <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+            {error}
+          </div>
+        )}
+
+        {/* Info Section */}
+        <div className="mt-12 bg-white rounded-xl shadow-lg p-6">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">How to Merge PDF Files</h2>
+          <ol className="list-decimal list-inside space-y-2 text-gray-600">
+            <li>Upload your PDF files by dragging and dropping them or clicking to select</li>
+            <li>Arrange the files in the order you want them merged</li>
+            <li>Click the Merge PDFs button</li>
+            <li>Download your merged PDF file</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  )
 }

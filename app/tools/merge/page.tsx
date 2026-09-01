@@ -73,10 +73,10 @@ export default function MergePDF() {
       const mergedPdf = await PDFDocument.create()
 
       for (let i = 0; i < files.length; i++) {
-        const file = files[i]
-        setDebugInfo(`Processing file ${i + 1}/${files.length}: ${file.name}`)
+        const fileItem = files[i]
+        setDebugInfo(`Processing file ${i + 1}/${files.length}: ${fileItem.name}`)
         
-        const fileBuffer = await file.arrayBuffer()
+        const fileBuffer = await fileItem.file.arrayBuffer()
         const pdf = await PDFDocument.load(fileBuffer)
         const pages = await pdf.copyPages(mergedPdf, pdf.getPageIndices())
         pages.forEach(page => mergedPdf.addPage(page))

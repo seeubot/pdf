@@ -91,8 +91,7 @@ export default function ProtectPDF() {
           y: height / 2,
           size: 40,
           font: helveticaFont,
-          color: rgb(0.85, 0.85, 0.85),
-          rotate: 45
+          color: rgb(0.85, 0.85, 0.85)
         })
       }
 

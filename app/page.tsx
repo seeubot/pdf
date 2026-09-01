@@ -31,6 +31,13 @@ const tools = [
     description: 'Add password protection to your PDFs',
     href: '/tools/protect',
     color: 'bg-sky-100'
+  },
+    {
+    icon: 'C',
+    title: 'Compress PDF',
+    description: 'Reduce PDF file size while maintaining quality',
+    href: '/tools/compress',
+    color: 'bg-orange-100'
   }
 ]
 

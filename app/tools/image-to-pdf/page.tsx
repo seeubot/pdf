@@ -156,7 +156,7 @@ export default function ImageToPDF() {
             </svg>
           </div>
           <h1 className="text-4xl font-bold text-gray-900 mb-2">Image to PDF</h1>
-          <p className="text-lg text-gray-600">Convert your images into a beautiful PDF document</p>
+          <p className="text-lg text-gray-600">Convert your images into a PDF document</p>
         </div>
 
         {/* Upload Area */}
@@ -179,13 +179,17 @@ export default function ImageToPDF() {
             style={{ display: 'none' }}
             id="image-upload"
           />
-          <div className="text-6xl mb-4">🖼️</div>
+          <div className="text-6xl mb-4 text-purple-500">
+            <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </div>
           <p className="text-xl font-semibold text-gray-700 mb-2">
-            {isDragging ? 'Drop images here!' : 'Drag & drop images here'}
+            {isDragging ? 'Drop images here' : 'Drag and drop images here'}
           </p>
           <p className="text-gray-500 mb-3">or click to browse</p>
           <span className="inline-block px-4 py-2 bg-purple-100 text-purple-700 rounded-full text-sm font-medium">
-            JPG • PNG • WebP
+            JPG - PNG - WebP
           </span>
         </div>
 
@@ -217,8 +221,11 @@ export default function ImageToPDF() {
                     <button
                       onClick={() => removeImage(image.id)}
                       className="absolute top-2 right-2 bg-red-500 text-white w-7 h-7 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                      title="Remove"
                     >
-                      ×
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
                     </button>
                   </div>
                   <div className="p-3">
@@ -263,8 +270,12 @@ export default function ImageToPDF() {
         {/* Result */}
         {pdfUrl && (
           <div className="mt-8 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-500 rounded-2xl p-8 text-center">
-            <div className="text-6xl mb-4">✅</div>
-            <h2 className="text-2xl font-bold text-green-700 mb-2">PDF Created!</h2>
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-4">
+              <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h2 className="text-2xl font-bold text-green-700 mb-2">PDF Created</h2>
             <p className="text-gray-600 mb-6">{images.length} images converted to PDF</p>
             <button
               onClick={handleDownload}
@@ -278,7 +289,9 @@ export default function ImageToPDF() {
         {/* Error */}
         {error && (
           <div className="mt-4 bg-red-50 border border-red-300 rounded-xl p-4 flex items-center gap-3">
-            <span className="text-red-500 text-xl">⚠️</span>
+            <svg className="w-6 h-6 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
             <p className="text-red-700">{error}</p>
           </div>
         )}

@@ -78,12 +78,16 @@ export default function MergePDF() {
 
     setIsMerging(true)
     setError(null)
+    setMergedUrl(null)
 
     try {
       const formData = new FormData()
+      
       files.forEach(fileItem => {
-        formData.append('files', fileItem.file)
+        formData.append('files', fileItem.file, fileItem.name)
       })
+
+      console.log('Sending files to merge...')
 
       const response = await fetch('/api/merge', {
         method: 'POST',
@@ -91,15 +95,17 @@ export default function MergePDF() {
       })
 
       if (!response.ok) {
-        throw new Error('Failed to merge PDFs')
+        const errorData = await response.json()
+        throw new Error(errorData.details || 'Failed to merge PDFs')
       }
 
       const blob = await response.blob()
       const url = URL.createObjectURL(blob)
       setMergedUrl(url)
+      console.log('Merge successful')
     } catch (err) {
-      setError('Failed to merge PDFs. Please try again.')
-      console.error(err)
+      console.error('Merge error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to merge PDFs. Please try again.')
     } finally {
       setIsMerging(false)
     }
@@ -138,7 +144,7 @@ export default function MergePDF() {
           }`}
         >
           <input {...getInputProps()} />
-          <div className="text-6xl mb-4">PDF</div>
+          <div className="text-6xl mb-4 font-bold text-gray-400">PDF</div>
           <p className="text-xl font-semibold text-gray-700 mb-2">
             {isDragActive ? 'Drop PDF files here' : 'Drag and drop PDF files here'}
           </p>
@@ -159,7 +165,7 @@ export default function MergePDF() {
                   className="flex items-center justify-between bg-gray-50 rounded-lg p-3"
                 >
                   <div className="flex items-center space-x-3 flex-1">
-                    <span className="text-2xl">PDF</span>
+                    <span className="text-2xl font-bold text-red-500">PDF</span>
                     <div>
                       <p className="font-medium text-gray-900">{fileItem.name}</p>
                       <p className="text-sm text-gray-500">{formatSize(fileItem.size)}</p>
@@ -170,6 +176,7 @@ export default function MergePDF() {
                       onClick={() => moveFile(index, 'up')}
                       disabled={index === 0}
                       className="p-2 hover:bg-gray-200 rounded disabled:opacity-30"
+                      title="Move up"
                     >
                       Up
                     </button>
@@ -177,12 +184,14 @@ export default function MergePDF() {
                       onClick={() => moveFile(index, 'down')}
                       disabled={index === files.length - 1}
                       className="p-2 hover:bg-gray-200 rounded disabled:opacity-30"
+                      title="Move down"
                     >
                       Down
                     </button>
                     <button
                       onClick={() => removeFile(fileItem.id)}
                       className="p-2 hover:bg-red-100 rounded text-red-600"
+                      title="Remove"
                     >
                       Remove
                     </button>
@@ -240,7 +249,7 @@ export default function MergePDF() {
           <ol className="list-decimal list-inside space-y-2 text-gray-600">
             <li>Upload your PDF files by dragging and dropping them or clicking to select</li>
             <li>Arrange the files in the order you want them merged</li>
-            <li>Click the "Merge PDFs" button</li>
+            <li>Click the Merge PDFs button</li>
             <li>Download your merged PDF file</li>
           </ol>
         </div>

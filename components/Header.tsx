@@ -2,7 +2,6 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
-import { motion } from 'framer-motion'
 
 export default function Header() {
   const [isOpen, setIsOpen] = useState(false)
@@ -13,24 +12,21 @@ export default function Header() {
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
           <Link href="/" className="flex items-center space-x-2">
-            <span className="font-bold text-xl bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            <svg className="w-8 h-8 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+            </svg>
+            <span className="font-bold text-xl text-gray-900">
               PDF Tools
             </span>
           </Link>
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-8">
-            <Link href="/#tools" className="text-gray-700 hover:text-blue-600 transition">
+            <Link href="/#tools" className="text-gray-700 hover:text-teal-600 transition">
               Tools
             </Link>
-            <Link href="/#about" className="text-gray-700 hover:text-blue-600 transition">
+            <Link href="/about" className="text-gray-700 hover:text-teal-600 transition">
               About
-            </Link>
-            <Link 
-              href="/#admin" 
-              className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2 rounded-lg hover:shadow-lg transition"
-            >
-              Admin
             </Link>
           </div>
 
@@ -51,24 +47,16 @@ export default function Header() {
 
         {/* Mobile Navigation */}
         {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="md:hidden pb-4"
-          >
+          <div className="md:hidden pb-4">
             <div className="flex flex-col space-y-3">
-              <Link href="/#tools" className="text-gray-700 hover:text-blue-600 transition px-3 py-2">
+              <Link href="/#tools" className="text-gray-700 hover:text-teal-600 transition px-3 py-2">
                 Tools
               </Link>
-              <Link href="/#about" className="text-gray-700 hover:text-blue-600 transition px-3 py-2">
+              <Link href="/about" className="text-gray-700 hover:text-teal-600 transition px-3 py-2">
                 About
               </Link>
-              <Link href="/#admin" className="text-gray-700 hover:text-blue-600 transition px-3 py-2">
-                Admin
-              </Link>
             </div>
-          </motion.div>
+          </div>
         )}
       </nav>
     </header>

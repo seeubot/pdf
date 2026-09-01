@@ -1,8 +1,8 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import ToolCard from '@/components/ToolCard'
-import About from '@/components/About'
+import ToolCard from '../components/ToolCard'
+import About from '../components/About'
 
 const tools = [
   {

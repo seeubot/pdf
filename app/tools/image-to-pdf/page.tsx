@@ -16,12 +16,15 @@ export default function ImageToPDF() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [debugInfo, setDebugInfo] = useState<string>('')
+  const [isDragging, setIsDragging] = useState(false)
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = e.target.files
     if (!selectedFiles) return
+    processFiles(selectedFiles)
+  }
 
+  const processFiles = (selectedFiles: FileList) => {
     const imageFiles: ImageItem[] = []
     
     for (let i = 0; i < selectedFiles.length; i++) {
@@ -45,7 +48,25 @@ export default function ImageToPDF() {
     setImages(prev => [...prev, ...imageFiles])
     setError(null)
     setPdfUrl(null)
-    setDebugInfo(`Added ${imageFiles.length} image(s)`)
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+    const files = e.dataTransfer.files
+    if (files.length > 0) {
+      processFiles(files)
+    }
   }
 
   const removeImage = (id: string) => {
@@ -70,15 +91,12 @@ export default function ImageToPDF() {
     setIsProcessing(true)
     setError(null)
     setPdfUrl(null)
-    setDebugInfo('Creating PDF from images...')
 
     try {
       const pdf = await PDFDocument.create()
 
       for (let i = 0; i < images.length; i++) {
         const image = images[i]
-        setDebugInfo(`Processing image ${i + 1}/${images.length}: ${image.name}`)
-
         const imageBytes = await image.file.arrayBuffer()
         
         let embeddedImage
@@ -88,10 +106,7 @@ export default function ImageToPDF() {
           embeddedImage = await pdf.embedJpg(imageBytes)
         }
 
-        // Get image dimensions
         const imageDims = embeddedImage.scale(1)
-
-        // Create a page with the same dimensions as the image
         const page = pdf.addPage([imageDims.width, imageDims.height])
         page.drawImage(embeddedImage, {
           x: 0,
@@ -101,17 +116,13 @@ export default function ImageToPDF() {
         })
       }
 
-      setDebugInfo('Saving PDF...')
       const pdfBytes = await pdf.save()
-      
       const blob = new Blob([pdfBytes as BlobPart], { type: 'application/pdf' })
       const url = URL.createObjectURL(blob)
       setPdfUrl(url)
-      setDebugInfo(`PDF created successfully with ${images.length} page(s)!`)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to convert images to PDF'
       setError(message)
-      setDebugInfo(`Error: ${message}`)
     } finally {
       setIsProcessing(false)
     }
@@ -132,30 +143,34 @@ export default function ImageToPDF() {
     setImages([])
     setPdfUrl(null)
     setError(null)
-    setDebugInfo('')
   }
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb', padding: '40px 20px' }}>
-      <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-        <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-          <h1 style={{ fontSize: '36px', fontWeight: 'bold', color: '#111827', marginBottom: '12px' }}>
-            Image to PDF Converter
-          </h1>
-          <p style={{ fontSize: '18px', color: '#6b7280' }}>
-            Convert JPG, PNG, and WebP images to PDF
-          </p>
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50 py-12 px-4">
+      <div className="max-w-4xl mx-auto">
+        {/* Header */}
+        <div className="text-center mb-10">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-purple-500 to-blue-500 rounded-2xl mb-4 shadow-lg">
+            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <h1 className="text-4xl font-bold text-gray-900 mb-2">Image to PDF</h1>
+          <p className="text-lg text-gray-600">Convert your images into a beautiful PDF document</p>
         </div>
 
-        {/* File Upload */}
-        <div style={{
-          border: '3px dashed #d1d5db',
-          borderRadius: '16px',
-          padding: '40px',
-          textAlign: 'center',
-          backgroundColor: 'white',
-          marginBottom: '24px'
-        }}>
+        {/* Upload Area */}
+        <div
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          onClick={() => document.getElementById('image-upload')?.click()}
+          className={`border-3 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all duration-300 ${
+            isDragging
+              ? 'border-purple-500 bg-purple-50 scale-102'
+              : 'border-gray-300 bg-white hover:border-purple-400 hover:shadow-xl'
+          }`}
+        >
           <input
             type="file"
             accept="image/jpeg,image/png,image/webp"
@@ -164,127 +179,80 @@ export default function ImageToPDF() {
             style={{ display: 'none' }}
             id="image-upload"
           />
-          <label
-            htmlFor="image-upload"
-            style={{
-              display: 'block',
-              cursor: 'pointer'
-            }}
-          >
-            <div style={{ fontSize: '48px', marginBottom: '12px' }}>IMG</div>
-            <p style={{ fontSize: '20px', fontWeight: '600', color: '#374151', marginBottom: '8px' }}>
-              Click to select images
-            </p>
-            <p style={{ color: '#6b7280' }}>
-              JPG, PNG, or WebP format
-            </p>
-          </label>
+          <div className="text-6xl mb-4">🖼️</div>
+          <p className="text-xl font-semibold text-gray-700 mb-2">
+            {isDragging ? 'Drop images here!' : 'Drag & drop images here'}
+          </p>
+          <p className="text-gray-500 mb-3">or click to browse</p>
+          <span className="inline-block px-4 py-2 bg-purple-100 text-purple-700 rounded-full text-sm font-medium">
+            JPG • PNG • WebP
+          </span>
         </div>
 
-        {/* Image List */}
+        {/* Image Grid */}
         {images.length > 0 && (
-          <div style={{
-            backgroundColor: 'white',
-            borderRadius: '12px',
-            padding: '24px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-            marginBottom: '24px'
-          }}>
-            <h2 style={{ fontSize: '20px', fontWeight: '600', marginBottom: '16px' }}>
-              Selected Images ({images.length})
-            </h2>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
-              gap: '12px'
-            }}>
-              {images.map((image) => (
+          <div className="mt-8 bg-white rounded-2xl shadow-xl p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-gray-900">
+                {images.length} {images.length === 1 ? 'Image' : 'Images'}
+              </h2>
+              <span className="text-sm text-gray-500">Total: {formatSize(images.reduce((acc, img) => acc + img.size, 0))}</span>
+            </div>
+            
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {images.map((image, index) => (
                 <div
                   key={image.id}
-                  style={{
-                    backgroundColor: '#f9fafb',
-                    borderRadius: '8px',
-                    padding: '8px',
-                    position: 'relative'
-                  }}
+                  className="group relative bg-gray-50 rounded-xl overflow-hidden hover:shadow-lg transition-all"
                 >
-                  <img
-                    src={image.preview}
-                    alt={image.name}
-                    style={{
-                      width: '100%',
-                      height: '100px',
-                      objectFit: 'cover',
-                      borderRadius: '4px',
-                      marginBottom: '4px'
-                    }}
-                  />
-                  <p style={{
-                    fontSize: '12px',
-                    color: '#111827',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    marginBottom: '2px'
-                  }}>
-                    {image.name}
-                  </p>
-                  <p style={{ fontSize: '11px', color: '#6b7280', marginBottom: '4px' }}>
-                    {formatSize(image.size)}
-                  </p>
-                  <button
-                    onClick={() => removeImage(image.id)}
-                    style={{
-                      position: 'absolute',
-                      top: '4px',
-                      right: '4px',
-                      backgroundColor: '#fee2e2',
-                      color: '#dc2626',
-                      border: 'none',
-                      borderRadius: '50%',
-                      width: '24px',
-                      height: '24px',
-                      cursor: 'pointer',
-                      fontSize: '14px',
-                      fontWeight: 'bold'
-                    }}
-                  >
-                    X
-                  </button>
+                  <div className="relative">
+                    <img
+                      src={image.preview}
+                      alt={image.name}
+                      className="w-full h-32 object-cover"
+                    />
+                    <div className="absolute top-2 left-2 bg-gray-900 bg-opacity-75 text-white text-xs px-2 py-1 rounded-full">
+                      {index + 1}
+                    </div>
+                    <button
+                      onClick={() => removeImage(image.id)}
+                      className="absolute top-2 right-2 bg-red-500 text-white w-7 h-7 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <div className="p-3">
+                    <p className="text-sm font-medium text-gray-900 truncate" title={image.name}>
+                      {image.name}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">{formatSize(image.size)}</p>
+                  </div>
                 </div>
               ))}
             </div>
 
-            <div style={{ display: 'flex', gap: '12px', marginTop: '20px' }}>
+            {/* Action Buttons */}
+            <div className="mt-6 flex flex-col sm:flex-row gap-4">
               <button
                 onClick={handleConvert}
                 disabled={isProcessing}
-                style={{
-                  flex: 1,
-                  padding: '14px',
-                  backgroundColor: '#7c3aed',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontSize: '16px',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                  opacity: isProcessing ? 0.5 : 1
-                }}
+                className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 text-white px-6 py-4 rounded-xl font-semibold text-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isProcessing ? 'Converting...' : 'Convert to PDF'}
+                {isProcessing ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    Converting...
+                  </span>
+                ) : (
+                  'Convert to PDF'
+                )}
               </button>
               <button
                 onClick={clearAll}
-                style={{
-                  padding: '14px 20px',
-                  backgroundColor: 'white',
-                  color: '#374151',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '8px',
-                  fontSize: '16px',
-                  cursor: 'pointer'
-                }}
+                className="px-6 py-4 border-2 border-gray-300 rounded-xl font-semibold text-gray-700 hover:bg-gray-50 transition"
               >
                 Clear All
               </button>
@@ -292,49 +260,15 @@ export default function ImageToPDF() {
           </div>
         )}
 
-        {/* Debug Info */}
-        {debugInfo && (
-          <div style={{
-            backgroundColor: '#eff6ff',
-            border: '1px solid #bfdbfe',
-            borderRadius: '8px',
-            padding: '16px',
-            marginBottom: '16px',
-            color: '#1e40af'
-          }}>
-            <p style={{ fontWeight: '600', marginBottom: '4px' }}>Status:</p>
-            <p>{debugInfo}</p>
-          </div>
-        )}
-
         {/* Result */}
         {pdfUrl && (
-          <div style={{
-            backgroundColor: '#f0fdf4',
-            border: '2px solid #22c55e',
-            borderRadius: '12px',
-            padding: '24px',
-            textAlign: 'center',
-            marginBottom: '16px'
-          }}>
-            <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#15803d', marginBottom: '8px' }}>
-              PDF Created Successfully!
-            </h2>
-            <p style={{ color: '#6b7280', marginBottom: '16px' }}>
-              Your images have been converted to PDF
-            </p>
+          <div className="mt-8 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-500 rounded-2xl p-8 text-center">
+            <div className="text-6xl mb-4">✅</div>
+            <h2 className="text-2xl font-bold text-green-700 mb-2">PDF Created!</h2>
+            <p className="text-gray-600 mb-6">{images.length} images converted to PDF</p>
             <button
               onClick={handleDownload}
-              style={{
-                backgroundColor: '#16a34a',
-                color: 'white',
-                padding: '12px 32px',
-                border: 'none',
-                borderRadius: '8px',
-                fontSize: '16px',
-                fontWeight: '600',
-                cursor: 'pointer'
-              }}
+              className="bg-green-600 text-white px-8 py-3 rounded-xl font-semibold text-lg hover:bg-green-700 hover:shadow-xl transition"
             >
               Download PDF
             </button>
@@ -343,16 +277,9 @@ export default function ImageToPDF() {
 
         {/* Error */}
         {error && (
-          <div style={{
-            backgroundColor: '#fef2f2',
-            border: '1px solid #fecaca',
-            borderRadius: '8px',
-            padding: '16px',
-            color: '#dc2626',
-            marginBottom: '16px'
-          }}>
-            <p style={{ fontWeight: '600', marginBottom: '4px' }}>Error:</p>
-            <p>{error}</p>
+          <div className="mt-4 bg-red-50 border border-red-300 rounded-xl p-4 flex items-center gap-3">
+            <span className="text-red-500 text-xl">⚠️</span>
+            <p className="text-red-700">{error}</p>
           </div>
         )}
       </div>

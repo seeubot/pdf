@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { PDFDocument } from '@cantoo/pdf-lib'
+import { PDFDocument, PDFName, PDFNumber, PDFRawStream } from '@cantoo/pdf-lib'
 
 interface FileItem {
   id: string
@@ -10,13 +10,40 @@ interface FileItem {
   size: number
 }
 
+type CompressionLevel = 'low' | 'medium' | 'high'
+
+const LEVEL_SETTINGS: Record<CompressionLevel, { quality: number; maxDimension: number }> = {
+  low: { quality: 0.85, maxDimension: 2500 },
+  medium: { quality: 0.7, maxDimension: 1800 },
+  high: { quality: 0.45, maxDimension: 1200 }
+}
+
+function canvasToJpegBytes(canvas: HTMLCanvasElement, quality: number): Promise<Uint8Array> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      async (blob) => {
+        if (!blob) {
+          reject(new Error('Canvas encoding failed'))
+          return
+        }
+        const buffer = await blob.arrayBuffer()
+        resolve(new Uint8Array(buffer))
+      },
+      'image/jpeg',
+      quality
+    )
+  })
+}
+
 export default function CompressPDF() {
   const [file, setFile] = useState<FileItem | null>(null)
-  const [compressionLevel, setCompressionLevel] = useState<'low' | 'medium' | 'high'>('medium')
+  const [compressionLevel, setCompressionLevel] = useState<CompressionLevel>('medium')
   const [isProcessing, setIsProcessing] = useState(false)
+  const [status, setStatus] = useState<string>('')
   const [compressedUrl, setCompressedUrl] = useState<string | null>(null)
   const [originalSize, setOriginalSize] = useState(0)
   const [compressedSize, setCompressedSize] = useState(0)
+  const [imagesProcessed, setImagesProcessed] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
 
@@ -37,6 +64,8 @@ export default function CompressPDF() {
     })
     setOriginalSize(selectedFile.size)
     setError(null)
+    setStatus('')
+    if (compressedUrl) URL.revokeObjectURL(compressedUrl)
     setCompressedUrl(null)
   }
 
@@ -77,27 +106,107 @@ export default function CompressPDF() {
       return
     }
 
+    if (compressedUrl) {
+      URL.revokeObjectURL(compressedUrl)
+    }
+
     setIsProcessing(true)
     setError(null)
     setCompressedUrl(null)
+    setImagesProcessed(0)
+    setStatus('Loading PDF...')
 
     try {
       const fileBuffer = await file.file.arrayBuffer()
       const pdf = await PDFDocument.load(fileBuffer)
+      const { quality, maxDimension } = LEVEL_SETTINGS[compressionLevel]
 
-      // Save with compression options
-      const compressedBytes = await pdf.save({
-        useObjectStreams: true,
-        addDefaultPage: false
-      })
+      const candidates = pdf.context
+        .enumerateIndirectObjects()
+        .filter(([, obj]) => {
+          if (!(obj instanceof PDFRawStream)) return false
+          const subtype = obj.dict.get(PDFName.of('Subtype'))
+          return subtype?.toString() === '/Image'
+        })
 
+      setStatus(`Found ${candidates.length} image(s). Scanning for JPEGs to recompress...`)
+
+      let processedCount = 0
+
+      for (const [, obj] of candidates) {
+        const rawStream = obj as PDFRawStream
+        const { dict } = rawStream
+
+        const filter = dict.get(PDFName.of('Filter'))
+        if (filter?.toString() !== '/DCTDecode') continue // only handle embedded JPEGs
+
+        const colorSpace = dict.get(PDFName.of('ColorSpace'))
+        if (colorSpace?.toString() === '/DeviceCMYK') continue // avoid CMYK JPEG color corruption
+
+        const widthObj = dict.get(PDFName.of('Width'))
+        const heightObj = dict.get(PDFName.of('Height'))
+        if (!(widthObj instanceof PDFNumber) || !(heightObj instanceof PDFNumber)) continue
+
+        const width = widthObj.asNumber()
+        const height = heightObj.asNumber()
+        if (!width || !height) continue
+
+        try {
+          setStatus(`Recompressing image ${processedCount + 1} of ${candidates.length}...`)
+
+          const originalBytes = rawStream.contents
+          const blob = new Blob([originalBytes as BlobPart], { type: 'image/jpeg' })
+          const bitmap = await createImageBitmap(blob)
+
+          const scale = Math.min(1, maxDimension / Math.max(width, height))
+          const newWidth = Math.max(1, Math.round(width * scale))
+          const newHeight = Math.max(1, Math.round(height * scale))
+
+          const canvas = document.createElement('canvas')
+          canvas.width = newWidth
+          canvas.height = newHeight
+          const ctx = canvas.getContext('2d')
+          if (!ctx) continue
+
+          ctx.drawImage(bitmap, 0, 0, newWidth, newHeight)
+          bitmap.close()
+
+          const newBytes = await canvasToJpegBytes(canvas, quality)
+
+          // Only keep the new version if it's actually smaller
+          if (newBytes.length < originalBytes.length) {
+            dict.set(PDFName.of('Width'), PDFNumber.of(newWidth))
+            dict.set(PDFName.of('Height'), PDFNumber.of(newHeight))
+            dict.set(PDFName.of('ColorSpace'), PDFName.of('DeviceRGB'))
+            dict.set(PDFName.of('BitsPerComponent'), PDFNumber.of(8))
+            dict.set(PDFName.of('Length'), PDFNumber.of(newBytes.length))
+            dict.delete(PDFName.of('Decode'))
+            rawStream.contents = newBytes
+            processedCount++
+          }
+        } catch {
+          // Skip images that fail to decode/encode rather than aborting the whole file
+          continue
+        }
+      }
+
+      setImagesProcessed(processedCount)
+      setStatus('Saving compressed PDF...')
+
+      const compressedBytes = await pdf.save({ useObjectStreams: true })
       const blob = new Blob([compressedBytes as BlobPart], { type: 'application/pdf' })
       const url = URL.createObjectURL(blob)
       setCompressedUrl(url)
       setCompressedSize(blob.size)
+      setStatus(
+        processedCount > 0
+          ? `Recompressed ${processedCount} image(s).`
+          : 'No JPEG images were found to recompress in this file.'
+      )
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to compress PDF'
       setError(message)
+      setStatus('')
     } finally {
       setIsProcessing(false)
     }
@@ -115,17 +224,22 @@ export default function CompressPDF() {
   }
 
   const clearAll = () => {
+    if (compressedUrl) URL.revokeObjectURL(compressedUrl)
     setFile(null)
     setCompressedUrl(null)
     setError(null)
+    setStatus('')
     setOriginalSize(0)
     setCompressedSize(0)
+    setImagesProcessed(0)
   }
 
   const getCompressionPercentage = () => {
-    if (originalSize === 0 || compressedSize === 0) return 0
+    if (originalSize === 0 || compressedSize === 0) return null
     return Math.round(((originalSize - compressedSize) / originalSize) * 100)
   }
+
+  const percentage = getCompressionPercentage()
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-amber-50 py-12 px-4">
@@ -138,7 +252,7 @@ export default function CompressPDF() {
             </svg>
           </div>
           <h1 className="text-4xl font-bold text-gray-900 mb-2">Compress PDF</h1>
-          <p className="text-lg text-gray-600">Reduce PDF file size while maintaining quality</p>
+          <p className="text-lg text-gray-600">Reduce PDF file size by recompressing embedded images</p>
         </div>
 
         {/* Upload Area */}
@@ -148,9 +262,9 @@ export default function CompressPDF() {
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             onClick={() => document.getElementById('pdf-upload')?.click()}
-            className={`border-3 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all duration-300 ${
+            className={`border-[3px] border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all duration-300 ${
               isDragging
-                ? 'border-orange-500 bg-orange-50 scale-102'
+                ? 'border-orange-500 bg-orange-50 scale-[1.02]'
                 : 'border-gray-300 bg-white hover:border-orange-400 hover:shadow-xl'
             }`}
           >
@@ -237,6 +351,9 @@ export default function CompressPDF() {
                   High
                 </button>
               </div>
+              <p className="mt-2 text-xs text-gray-500">
+                Higher compression reduces image quality and resolution more aggressively.
+              </p>
             </div>
 
             {/* Action Button */}
@@ -257,6 +374,10 @@ export default function CompressPDF() {
                 'Compress PDF'
               )}
             </button>
+
+            {status && isProcessing && (
+              <p className="mt-3 text-sm text-gray-500 text-center">{status}</p>
+            )}
           </div>
         )}
 
@@ -269,8 +390,8 @@ export default function CompressPDF() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
               </div>
-              <h2 className="text-2xl font-bold text-green-700 mb-2">PDF Compressed</h2>
-              <p className="text-gray-600">Your PDF has been compressed successfully</p>
+              <h2 className="text-2xl font-bold text-green-700 mb-2">PDF Processed</h2>
+              <p className="text-gray-600">{status}</p>
             </div>
 
             {/* Stats */}
@@ -285,10 +406,18 @@ export default function CompressPDF() {
               </div>
             </div>
 
-            {getCompressionPercentage() > 0 && (
+            {percentage !== null && percentage > 0 && (
               <div className="bg-green-100 rounded-xl p-4 text-center mb-6">
                 <p className="text-green-700 font-semibold">
-                  {getCompressionPercentage()}% size reduction
+                  {percentage}% size reduction ({imagesProcessed} image{imagesProcessed === 1 ? '' : 's'} recompressed)
+                </p>
+              </div>
+            )}
+
+            {percentage !== null && percentage <= 0 && (
+              <div className="bg-amber-100 rounded-xl p-4 text-center mb-6">
+                <p className="text-amber-800 font-semibold">
+                  No meaningful size reduction was possible for this file — it likely has few or no compressible JPEG images.
                 </p>
               </div>
             )}

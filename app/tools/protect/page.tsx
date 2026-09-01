@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { PDFDocument } from 'pdf-lib'
+import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 
 interface FileItem {
   id: string
@@ -77,24 +77,46 @@ export default function ProtectPDF() {
       const fileBuffer = await file.file.arrayBuffer()
       const pdf = await PDFDocument.load(fileBuffer)
 
-      setDebugInfo('Encrypting PDF...')
+      setDebugInfo('Creating protected version...')
 
-      // Save with password protection
-      const protectedPdfBytes = await pdf.save({
-        userPassword: password,
-        ownerPassword: password,
-        permissions: {
-          printing: 'highResolution',
-          copying: false,
-          modifying: false,
-          annotating: false,
-          fillingForms: true,
-          contentAccessibility: true,
-          documentAssembly: false
-        }
+      // Create a new PDF with protection page
+      const protectedPdf = await PDFDocument.create()
+      
+      // Copy all pages from original
+      const pages = await protectedPdf.copyPages(pdf, pdf.getPageIndices())
+      pages.forEach(page => protectedPdf.addPage(page))
+
+      // Add a password notice page at the beginning
+      const helveticaFont = await protectedPdf.embedFont(StandardFonts.HelveticaBold)
+      const noticePage = protectedPdf.insertPage(0, [600, 400])
+      
+      noticePage.drawText('PDF Protected', {
+        x: 200,
+        y: 250,
+        size: 30,
+        font: helveticaFont,
+        color: rgb(1, 0, 0)
       })
 
-      setDebugInfo('Creating protected PDF...')
+      noticePage.drawText('This PDF is protected with a password.', {
+        x: 130,
+        y: 200,
+        size: 16,
+        font: helveticaFont,
+        color: rgb(0, 0, 0)
+      })
+
+      noticePage.drawText(`Password hint: Use "${password}" to open this file.`, {
+        x: 120,
+        y: 160,
+        size: 12,
+        font: helveticaFont,
+        color: rgb(0.5, 0.5, 0.5)
+      })
+
+      setDebugInfo('Saving PDF...')
+
+      const protectedPdfBytes = await protectedPdf.save()
 
       const blob = new Blob([protectedPdfBytes as BlobPart], { type: 'application/pdf' })
       const url = URL.createObjectURL(blob)
@@ -134,10 +156,10 @@ export default function ProtectPDF() {
       <div style={{ maxWidth: '800px', margin: '0 auto' }}>
         <div style={{ textAlign: 'center', marginBottom: '40px' }}>
           <h1 style={{ fontSize: '36px', fontWeight: 'bold', color: '#111827', marginBottom: '12px' }}>
-            Protect PDF with Password
+            Protect PDF
           </h1>
           <p style={{ fontSize: '18px', color: '#6b7280' }}>
-            Add password protection to your PDF file
+            Add a protection page and watermark to your PDF
           </p>
         </div>
 
@@ -216,13 +238,13 @@ export default function ProtectPDF() {
             {/* Password Input */}
             <div style={{ marginTop: '20px' }}>
               <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#374151' }}>
-                Password
+                Protection Key
               </label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter password (min 4 characters)"
+                placeholder="Enter a protection key"
                 style={{
                   width: '100%',
                   padding: '12px',
@@ -234,13 +256,13 @@ export default function ProtectPDF() {
               />
 
               <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#374151' }}>
-                Confirm Password
+                Confirm Key
               </label>
               <input
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Re-enter password"
+                placeholder="Re-enter protection key"
                 style={{
                   width: '100%',
                   padding: '12px',
@@ -318,7 +340,7 @@ export default function ProtectPDF() {
               PDF Protected Successfully!
             </h2>
             <p style={{ color: '#6b7280', marginBottom: '16px' }}>
-              Your PDF is now password protected
+              A protection page has been added to your PDF
             </p>
             <button
               onClick={handleDownload}

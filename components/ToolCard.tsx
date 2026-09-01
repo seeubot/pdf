@@ -20,7 +20,7 @@ export default function ToolCard({ icon, title, description, href, color }: Tool
     >
       <Link href={href} className="block p-6">
         <div className={`w-16 h-16 ${color} rounded-lg flex items-center justify-center mb-4`}>
-          <span className="text-3xl">{icon}</span>
+          <span className="text-2xl font-bold">{icon}</span>
         </div>
         <h3 className="text-xl font-semibold text-gray-900 mb-2">{title}</h3>
         <p className="text-gray-600">{description}</p>

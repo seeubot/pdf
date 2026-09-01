@@ -85,7 +85,7 @@ export default function MergePDF() {
       setDebugInfo('Saving merged PDF...')
       const mergedPdfBytes = await mergedPdf.save()
       
-      const blob = new Blob([mergedPdfBytes], { type: 'application/pdf' })
+      const blob = new Blob([mergedPdfBytes as BlobPart], { type: 'application/pdf' })
       const url = URL.createObjectURL(blob)
       setMergedUrl(url)
       setDebugInfo(`Merge successful! Total pages: ${mergedPdf.getPageCount()}`)

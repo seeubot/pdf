@@ -44,7 +44,7 @@ export default function About() {
               
               <div className="flex gap-4 justify-center md:justify-start">
                 <a 
-                  href="https://github.com" 
+                  href="https://github.com/seeubot" 
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition"
@@ -58,14 +58,6 @@ export default function About() {
                   className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
                 >
                   LinkedIn
-                </a>
-                <a 
-                  href="https://twitter.com" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="bg-sky-500 text-white px-4 py-2 rounded-lg hover:bg-sky-600 transition"
-                >
-                  Twitter
                 </a>
               </div>
             </div>

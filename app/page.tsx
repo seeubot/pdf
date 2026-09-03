@@ -11,6 +11,13 @@ const tools = [
     href: '/tools/merge',
     color: 'bg-teal-100'
   },
+    {
+    icon: 'D',
+    title: 'PDF to DOCX',
+    description: 'Convert PDF files to Word documents',
+    href: '/tools/pdf-to-docx',
+    color: 'bg-blue-100'
+  },
   {
     icon: 'S',
     title: 'Split PDF',
